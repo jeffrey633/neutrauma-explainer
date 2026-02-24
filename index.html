@@ -251,7 +251,7 @@
     var paused = false;
     var pausedAt = 0;
     var running = false;
-    var audioCtx = null;
+    // audio handled by startAudio/stopAudio
 
     // Particles
     var particlesEl = document.getElementById('particles');
@@ -265,46 +265,103 @@
         particlesEl.appendChild(p);
     }
 
-    // Audio - ambient drone
-    function startAudio(){
-        try{
-            audioCtx = new(window.AudioContext||window.webkitAudioContext)();
-            var g = audioCtx.createGain();
-            g.gain.value = 0;
-            g.connect(audioCtx.destination);
-            // Pad chord: stacked sine waves
-            var freqs = [65.41,98.00,130.81,196.00,261.63];
-            freqs.forEach(function(f){
-                var o = audioCtx.createOscillator();
-                o.type='sine';
-                o.frequency.value=f;
-                var og = audioCtx.createGain();
-                og.gain.value=0.12;
-                o.connect(og);
-                og.connect(g);
-                o.start();
-            });
-            // LFO for movement
-            var lfo = audioCtx.createOscillator();
-            lfo.frequency.value=0.15;
-            var lfoGain = audioCtx.createGain();
-            lfoGain.gain.value=0.06;
-            lfo.connect(lfoGain);
-            lfoGain.connect(g.gain);
-            lfo.start();
-            // Fade in
-            g.gain.setValueAtTime(0, audioCtx.currentTime);
-            g.gain.linearRampToValueAtTime(0.45, audioCtx.currentTime+2);
-            window._audioGain = g;
-        }catch(e){}
+    // Audio - generate WAV and play via <audio> element
+    var audioEl = null;
+
+    function generateWav(durationSec, sampleRate) {
+        var n = durationSec * sampleRate;
+        var buffer = new Float32Array(n);
+        // Cinematic pad: layered waveforms with slow modulation
+        var chordFreqs = [
+            {f:55.00, type:'tri', vol:0.22},     // A1 sub bass
+            {f:65.41, type:'sin', vol:0.18},      // C2
+            {f:82.41, type:'sin', vol:0.16},      // E2
+            {f:98.00, type:'tri', vol:0.14},      // G2
+            {f:130.81, type:'sin', vol:0.12},     // C3
+            {f:196.00, type:'sin', vol:0.09},     // G3
+            {f:261.63, type:'sin', vol:0.06},     // C4 shimmer
+            {f:329.63, type:'sin', vol:0.04},     // E4 high shimmer
+        ];
+        for (var i = 0; i < n; i++) {
+            var t = i / sampleRate;
+            var sample = 0;
+            // LFO for gentle movement
+            var lfo1 = 1 + 0.3 * Math.sin(2 * Math.PI * 0.12 * t);
+            var lfo2 = 1 + 0.15 * Math.sin(2 * Math.PI * 0.07 * t + 1.2);
+            for (var c = 0; c < chordFreqs.length; c++) {
+                var note = chordFreqs[c];
+                var freq = note.f * (c < 4 ? lfo2 : lfo1);
+                var phase = 2 * Math.PI * freq * t;
+                var wave;
+                if (note.type === 'tri') {
+                    wave = 2 * Math.abs(2 * ((freq * t) % 1) - 1) - 1;
+                } else {
+                    wave = Math.sin(phase);
+                }
+                sample += wave * note.vol;
+            }
+            // Add subtle noise texture
+            sample += (Math.random() * 2 - 1) * 0.008;
+            // Envelope: 2s fade in, 2s fade out
+            var env = 1;
+            if (t < 2) env = t / 2;
+            else if (t > durationSec - 2) env = (durationSec - t) / 2;
+            buffer[i] = sample * env * 0.85;
+        }
+        // Encode as 16-bit PCM WAV
+        var numChannels = 1;
+        var bytesPerSample = 2;
+        var dataLen = n * numChannels * bytesPerSample;
+        var headerLen = 44;
+        var totalLen = headerLen + dataLen;
+        var wav = new ArrayBuffer(totalLen);
+        var view = new DataView(wav);
+        function writeStr(offset, str) {
+            for (var s = 0; s < str.length; s++) view.setUint8(offset + s, str.charCodeAt(s));
+        }
+        writeStr(0, 'RIFF');
+        view.setUint32(4, totalLen - 8, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+        view.setUint16(32, numChannels * bytesPerSample, true);
+        view.setUint16(34, bytesPerSample * 8, true);
+        writeStr(36, 'data');
+        view.setUint32(40, dataLen, true);
+        var offset = 44;
+        for (var i = 0; i < n; i++) {
+            var s = Math.max(-1, Math.min(1, buffer[i]));
+            var val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            view.setInt16(offset, val, true);
+            offset += 2;
+        }
+        return new Blob([wav], {type: 'audio/wav'});
     }
 
-    function stopAudio(){
-        if(audioCtx && window._audioGain){
-            try{
-                window._audioGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1.5);
-                setTimeout(function(){audioCtx.close()},2000);
-            }catch(e){}
+    function startAudio() {
+        try {
+            var dur = totalDuration / 1000 + 2; // extra 2s for fade out
+            var blob = generateWav(dur, 22050);
+            var url = URL.createObjectURL(blob);
+            audioEl = new Audio(url);
+            audioEl.volume = 1.0;
+            audioEl.play().catch(function(e) { console.log('Audio play failed:', e); });
+        } catch(e) { console.log('Audio error:', e); }
+    }
+
+    function stopAudio() {
+        if (audioEl) {
+            // Fade out by stepping volume down
+            var vol = audioEl.volume;
+            var fade = setInterval(function() {
+                vol -= 0.05;
+                if (vol <= 0) { clearInterval(fade); audioEl.pause(); audioEl = null; }
+                else audioEl.volume = vol;
+            }, 50);
         }
     }
 
@@ -400,14 +457,14 @@
             startTime = Date.now() - pausedAt;
             document.getElementById('pauseIcon').style.display='';
             document.getElementById('playIcon').style.display='none';
-            if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+            if(audioEl) audioEl.play().catch(function(){});
             tick();
         } else {
             paused = true;
             pausedAt = elapsed;
             document.getElementById('pauseIcon').style.display='none';
             document.getElementById('playIcon').style.display='';
-            if(audioCtx && audioCtx.state==='running') audioCtx.suspend();
+            if(audioEl) audioEl.pause();
         }
     }
 
