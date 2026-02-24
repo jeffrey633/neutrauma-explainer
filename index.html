@@ -222,6 +222,9 @@
         <div class="cta-sub">info@NeuTrauma.com &nbsp;|&nbsp; NeuTrauma.com &nbsp;|&nbsp; 43+ States</div>
     </div>
 
+    <!-- Audio debug -->
+    <div id="audioStatus" style="position:absolute;top:10px;left:10px;z-index:200;color:rgba(255,255,255,0.5);font-size:11px;font-family:monospace"></div>
+
     <!-- Progress bar -->
     <div class="progress" id="progress"></div>
 
@@ -265,103 +268,95 @@
         particlesEl.appendChild(p);
     }
 
-    // Audio - generate WAV and play via <audio> element
-    var audioEl = null;
-
-    function generateWav(durationSec, sampleRate) {
-        var n = durationSec * sampleRate;
-        var buffer = new Float32Array(n);
-        // Cinematic pad: layered waveforms with slow modulation
-        var chordFreqs = [
-            {f:55.00, type:'tri', vol:0.22},     // A1 sub bass
-            {f:65.41, type:'sin', vol:0.18},      // C2
-            {f:82.41, type:'sin', vol:0.16},      // E2
-            {f:98.00, type:'tri', vol:0.14},      // G2
-            {f:130.81, type:'sin', vol:0.12},     // C3
-            {f:196.00, type:'sin', vol:0.09},     // G3
-            {f:261.63, type:'sin', vol:0.06},     // C4 shimmer
-            {f:329.63, type:'sin', vol:0.04},     // E4 high shimmer
-        ];
-        for (var i = 0; i < n; i++) {
-            var t = i / sampleRate;
-            var sample = 0;
-            // LFO for gentle movement
-            var lfo1 = 1 + 0.3 * Math.sin(2 * Math.PI * 0.12 * t);
-            var lfo2 = 1 + 0.15 * Math.sin(2 * Math.PI * 0.07 * t + 1.2);
-            for (var c = 0; c < chordFreqs.length; c++) {
-                var note = chordFreqs[c];
-                var freq = note.f * (c < 4 ? lfo2 : lfo1);
-                var phase = 2 * Math.PI * freq * t;
-                var wave;
-                if (note.type === 'tri') {
-                    wave = 2 * Math.abs(2 * ((freq * t) % 1) - 1) - 1;
-                } else {
-                    wave = Math.sin(phase);
-                }
-                sample += wave * note.vol;
-            }
-            // Add subtle noise texture
-            sample += (Math.random() * 2 - 1) * 0.008;
-            // Envelope: 2s fade in, 2s fade out
-            var env = 1;
-            if (t < 2) env = t / 2;
-            else if (t > durationSec - 2) env = (durationSec - t) / 2;
-            buffer[i] = sample * env * 0.85;
-        }
-        // Encode as 16-bit PCM WAV
-        var numChannels = 1;
-        var bytesPerSample = 2;
-        var dataLen = n * numChannels * bytesPerSample;
-        var headerLen = 44;
-        var totalLen = headerLen + dataLen;
-        var wav = new ArrayBuffer(totalLen);
-        var view = new DataView(wav);
-        function writeStr(offset, str) {
-            for (var s = 0; s < str.length; s++) view.setUint8(offset + s, str.charCodeAt(s));
-        }
-        writeStr(0, 'RIFF');
-        view.setUint32(4, totalLen - 8, true);
-        writeStr(8, 'WAVE');
-        writeStr(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
-        view.setUint16(32, numChannels * bytesPerSample, true);
-        view.setUint16(34, bytesPerSample * 8, true);
-        writeStr(36, 'data');
-        view.setUint32(40, dataLen, true);
-        var offset = 44;
-        for (var i = 0; i < n; i++) {
-            var s = Math.max(-1, Math.min(1, buffer[i]));
-            var val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            view.setInt16(offset, val, true);
-            offset += 2;
-        }
-        return new Blob([wav], {type: 'audio/wav'});
-    }
+    // Audio - render to AudioBuffer, play via Web Audio API
+    var actx = null;
+    var sourceNode = null;
+    var masterGain = null;
 
     function startAudio() {
         try {
-            var dur = totalDuration / 1000 + 2; // extra 2s for fade out
-            var blob = generateWav(dur, 22050);
-            var url = URL.createObjectURL(blob);
-            audioEl = new Audio(url);
-            audioEl.volume = 1.0;
-            audioEl.play().catch(function(e) { console.log('Audio play failed:', e); });
-        } catch(e) { console.log('Audio error:', e); }
+            actx = new (window.AudioContext || window.webkitAudioContext)();
+            // MUST resume on user gesture (Safari/Chrome policy)
+            if (actx.state === 'suspended') actx.resume();
+
+            var sr = actx.sampleRate;
+            var dur = Math.ceil(totalDuration / 1000) + 3;
+            var len = dur * sr;
+            var audioBuf = actx.createBuffer(2, len, sr);
+            var left = audioBuf.getChannelData(0);
+            var right = audioBuf.getChannelData(1);
+
+            // Build cinematic ambient pad
+            var notes = [
+                {f:55,   v:0.20, pan:-0.3},
+                {f:65.41,v:0.18, pan:0.2},
+                {f:82.41,v:0.15, pan:-0.1},
+                {f:98,   v:0.14, pan:0.3},
+                {f:130.81,v:0.12, pan:-0.2},
+                {f:196,  v:0.10, pan:0.1},
+                {f:261.63,v:0.07, pan:-0.4},
+                {f:329.63,v:0.05, pan:0.4}
+            ];
+
+            for (var i = 0; i < len; i++) {
+                var t = i / sr;
+                var sL = 0, sR = 0;
+                var lfo1 = 1 + 0.2 * Math.sin(6.2832 * 0.1 * t);
+                var lfo2 = 1 + 0.12 * Math.sin(6.2832 * 0.067 * t + 1);
+                for (var n = 0; n < notes.length; n++) {
+                    var nt = notes[n];
+                    var freq = nt.f * (n < 4 ? lfo2 : lfo1);
+                    var w = Math.sin(6.2832 * freq * t);
+                    // Add slight detuned copy for richness
+                    w += 0.5 * Math.sin(6.2832 * freq * 1.003 * t);
+                    w *= nt.v;
+                    var panL = 0.5 - nt.pan * 0.5;
+                    var panR = 0.5 + nt.pan * 0.5;
+                    sL += w * panL;
+                    sR += w * panR;
+                }
+                // Noise texture
+                var noise = (Math.random() - 0.5) * 0.012;
+                sL += noise;
+                sR += noise;
+                // Envelope: 2s in, 2.5s out
+                var env = 1;
+                if (t < 2) env = t / 2;
+                else if (t > dur - 2.5) env = (dur - t) / 2.5;
+                env = Math.max(0, Math.min(1, env));
+                left[i] = sL * env;
+                right[i] = sR * env;
+            }
+
+            // Play
+            masterGain = actx.createGain();
+            masterGain.gain.value = 1.0;
+            masterGain.connect(actx.destination);
+
+            sourceNode = actx.createBufferSource();
+            sourceNode.buffer = audioBuf;
+            sourceNode.connect(masterGain);
+            sourceNode.start(0);
+
+            // Debug: show audio status
+            var dbg = document.getElementById('audioStatus');
+            if (dbg) dbg.textContent = 'Audio: playing (' + sr + 'Hz)';
+        } catch(e) {
+            var dbg = document.getElementById('audioStatus');
+            if (dbg) dbg.textContent = 'Audio error: ' + e.message;
+        }
     }
 
     function stopAudio() {
-        if (audioEl) {
-            // Fade out by stepping volume down
-            var vol = audioEl.volume;
-            var fade = setInterval(function() {
-                vol -= 0.05;
-                if (vol <= 0) { clearInterval(fade); audioEl.pause(); audioEl = null; }
-                else audioEl.volume = vol;
-            }, 50);
+        if (masterGain && actx) {
+            try {
+                masterGain.gain.linearRampToValueAtTime(0, actx.currentTime + 1.5);
+                setTimeout(function() {
+                    if (sourceNode) try { sourceNode.stop(); } catch(e){}
+                    if (actx) try { actx.close(); } catch(e){}
+                    actx = null; sourceNode = null; masterGain = null;
+                }, 2000);
+            } catch(e) {}
         }
     }
 
@@ -457,14 +452,14 @@
             startTime = Date.now() - pausedAt;
             document.getElementById('pauseIcon').style.display='';
             document.getElementById('playIcon').style.display='none';
-            if(audioEl) audioEl.play().catch(function(){});
+            if(actx && actx.state==='suspended') actx.resume();
             tick();
         } else {
             paused = true;
             pausedAt = elapsed;
             document.getElementById('pauseIcon').style.display='none';
             document.getElementById('playIcon').style.display='';
-            if(audioEl) audioEl.pause();
+            if(actx && actx.state==='running') actx.suspend();
         }
     }
 
