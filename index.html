@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuTrauma — The Invisible Injury</title>
+    <meta name="description" content="How traumatic brain injuries go undiagnosed in the ER — and why it matters.">
+    <meta property="og:title" content="NeuTrauma — The Invisible Injury">
+    <meta property="og:description" content="56-89% of TBI cases go undiagnosed. Learn what happens when the invisible injury is missed.">
+    <meta property="og:type" content="video.other">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;overflow:hidden;background:#000}
+        body{font-family:'Inter',sans-serif;color:#fff}
+
+        /* Video container */
+        .video-wrap{position:relative;width:100%;height:100%;overflow:hidden}
+
+        /* Click-to-start overlay */
+        .start-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:opacity 0.6s}
+        .start-overlay.hidden{opacity:0;pointer-events:none}
+        .start-overlay .play-icon{width:80px;height:80px;border:3px solid rgba(255,255,255,0.8);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;transition:transform 0.3s}
+        .start-overlay:hover .play-icon{transform:scale(1.1)}
+        .play-icon::after{content:'';display:block;width:0;height:0;border-top:18px solid transparent;border-bottom:18px solid transparent;border-left:28px solid rgba(255,255,255,0.9);margin-left:6px}
+        .start-overlay p{font-size:1rem;color:rgba(255,255,255,0.6);letter-spacing:0.1em;text-transform:uppercase;font-weight:500}
+        .start-overlay .title-pre{font-family:'Playfair Display',serif;font-size:2.5rem;color:#fff;margin-bottom:0.5rem;letter-spacing:0.02em}
+
+        /* Scene base */
+        .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;opacity:0;transition:opacity 0.8s ease;pointer-events:none}
+        .scene.active{opacity:1;pointer-events:auto}
+
+        /* Scene backgrounds */
+        .scene-1{background:linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)}
+        .scene-2{background:linear-gradient(135deg,#0d1b2a 0%,#1b2838 100%)}
+        .scene-3{background:linear-gradient(135deg,#0a1628 0%,#162a4a 100%)}
+        .scene-4{background:linear-gradient(135deg,#1a0a0a 0%,#2a1520 100%)}
+        .scene-5{background:linear-gradient(135deg,#1A3A5C 0%,#2166AC 100%)}
+        .scene-6{background:linear-gradient(135deg,#1A3A5C 0%,#0d1b2a 100%)}
+
+        /* Typography */
+        .headline{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,5vw,3.5rem);line-height:1.2;margin-bottom:1rem;opacity:0;transform:translateY(30px);transition:opacity 0.8s ease 0.3s,transform 0.8s ease 0.3s}
+        .active .headline{opacity:1;transform:translateY(0)}
+
+        .subtext{font-size:clamp(0.9rem,2.5vw,1.25rem);color:rgba(255,255,255,0.75);max-width:700px;line-height:1.7;font-weight:300;opacity:0;transform:translateY(20px);transition:opacity 0.8s ease 0.6s,transform 0.8s ease 0.6s}
+        .active .subtext{opacity:1;transform:translateY(0)}
+
+        .stat-big{font-family:'Playfair Display',serif;font-size:clamp(3rem,10vw,7rem);color:#D4833B;line-height:1;margin-bottom:0.5rem;opacity:0;transform:scale(0.8);transition:opacity 0.6s ease 0.2s,transform 0.6s ease 0.2s}
+        .active .stat-big{opacity:1;transform:scale(1)}
+
+        .stat-label{font-size:clamp(0.85rem,2vw,1.1rem);color:rgba(255,255,255,0.7);font-weight:400;opacity:0;transition:opacity 0.6s ease 0.5s}
+        .active .stat-label{opacity:1}
+
+        .citation{font-size:0.7rem;color:rgba(255,255,255,0.35);margin-top:0.5rem;font-style:italic;opacity:0;transition:opacity 0.6s ease 0.8s}
+        .active .citation{opacity:1}
+
+        /* Timeline */
+        .timeline-bar{display:flex;align-items:stretch;width:90%;max-width:800px;height:60px;margin:2rem auto 1rem;border-radius:4px;overflow:hidden;opacity:0;transform:scaleX(0);transform-origin:left;transition:opacity 0.5s ease 0.3s,transform 1s ease 0.3s}
+        .active .timeline-bar{opacity:1;transform:scaleX(1)}
+        .tl-seg{display:flex;align-items:center;justify-content:center;flex-direction:column;padding:0.25rem 0.5rem}
+        .tl-seg:nth-child(1){background:#3B8ED0;flex:1}
+        .tl-seg:nth-child(2){background:#D4833B;flex:1.2}
+        .tl-seg:nth-child(3){background:#6B7B8D;flex:1.5}
+        .tl-seg:nth-child(4){background:#3a3a4a;flex:2}
+        .tl-seg .tl-time{font-size:clamp(0.6rem,1.5vw,0.8rem);font-weight:700;white-space:nowrap}
+        .tl-seg .tl-label{font-size:clamp(0.5rem,1.2vw,0.65rem);opacity:0.8;white-space:nowrap}
+
+        /* Risk cards */
+        .risk-row{display:flex;gap:clamp(0.5rem,2vw,1.5rem);justify-content:center;flex-wrap:wrap;margin-top:1.5rem;max-width:900px}
+        .risk-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:clamp(0.75rem,2vw,1.5rem) clamp(1rem,2.5vw,2rem);text-align:center;opacity:0;transform:translateY(30px)}
+        .active .risk-card{opacity:1;transform:translateY(0)}
+        .active .risk-card:nth-child(1){transition:opacity 0.5s ease 0.3s,transform 0.5s ease 0.3s}
+        .active .risk-card:nth-child(2){transition:opacity 0.5s ease 0.5s,transform 0.5s ease 0.5s}
+        .active .risk-card:nth-child(3){transition:opacity 0.5s ease 0.7s,transform 0.5s ease 0.7s}
+        .active .risk-card:nth-child(4){transition:opacity 0.5s ease 0.9s,transform 0.5s ease 0.9s}
+        .risk-card .mult{font-family:'Playfair Display',serif;font-size:clamp(1.5rem,4vw,2.5rem);color:#D4833B;line-height:1}
+        .risk-card .cond{font-size:clamp(0.7rem,1.5vw,0.85rem);color:rgba(255,255,255,0.7);margin-top:0.25rem}
+        .risk-card .src{font-size:0.55rem;color:rgba(255,255,255,0.3);margin-top:0.25rem;font-style:italic}
+
+        /* Scene 5 features */
+        .features{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;margin-top:1.5rem;max-width:800px}
+        .feat{background:rgba(255,255,255,0.1);border-radius:4px;padding:0.75rem 1.25rem;font-size:clamp(0.75rem,1.8vw,0.95rem);font-weight:500;opacity:0;transform:translateY(20px)}
+        .active .feat{opacity:1;transform:translateY(0)}
+        .active .feat:nth-child(1){transition:all 0.4s ease 0.4s}
+        .active .feat:nth-child(2){transition:all 0.4s ease 0.6s}
+        .active .feat:nth-child(3){transition:all 0.4s ease 0.8s}
+
+        /* Scene 6 CTA */
+        .logo-big{font-family:'Playfair Display',serif;font-size:clamp(2.5rem,7vw,4.5rem);letter-spacing:0.02em;opacity:0;transform:translateY(20px);transition:all 0.8s ease 0.2s}
+        .active .logo-big{opacity:1;transform:translateY(0)}
+        .cta-phone{font-size:clamp(1.2rem,3vw,1.8rem);font-weight:600;color:#D4833B;margin:1rem 0;opacity:0;transition:opacity 0.6s ease 0.6s}
+        .active .cta-phone{opacity:1}
+        .cta-phone a{color:#D4833B;text-decoration:none}
+        .cta-btn{display:inline-block;background:#D4833B;color:#fff;padding:0.8rem 2.5rem;border-radius:4px;font-weight:600;font-size:clamp(0.85rem,2vw,1.1rem);text-decoration:none;opacity:0;transform:translateY(10px);transition:all 0.5s ease 0.9s}
+        .active .cta-btn{opacity:1;transform:translateY(0)}
+        .cta-btn:hover{background:#B8692F}
+        .cta-sub{font-size:0.8rem;color:rgba(255,255,255,0.5);margin-top:1rem;opacity:0;transition:opacity 0.5s ease 1.1s}
+        .active .cta-sub{opacity:1}
+
+        /* Progress bar */
+        .progress{position:absolute;bottom:0;left:0;height:3px;background:#D4833B;z-index:100;transition:width 0.1s linear}
+
+        /* Controls */
+        .controls{position:absolute;bottom:1.5rem;right:1.5rem;z-index:150;display:flex;gap:0.75rem;opacity:0;transition:opacity 0.5s}
+        .controls.visible{opacity:1}
+        .ctrl-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.4);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:background 0.3s}
+        .ctrl-btn:hover{background:rgba(255,255,255,0.15)}
+        .ctrl-btn svg{width:16px;height:16px;fill:#fff}
+
+        /* Pulse animation for scene 1 */
+        .pulse{animation:pulse 2s ease-in-out infinite}
+        @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:0.6}}
+
+        /* Ambient particles */
+        .particles{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
+        .particle{position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.15);border-radius:50%;animation:float linear infinite}
+        @keyframes float{0%{transform:translateY(100vh) translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(-10vh) translateX(50px);opacity:0}}
+
+        /* Ensure content above particles */
+        .scene>*{position:relative;z-index:2}
+
+        /* Impact flash */
+        .flash{position:absolute;inset:0;background:#fff;opacity:0;z-index:50;pointer-events:none}
+        .flash.active{animation:flashAnim 0.4s ease-out}
+        @keyframes flashAnim{0%{opacity:0.7}100%{opacity:0}}
+
+        /* Responsive */
+        @media(max-width:600px){
+            .risk-row{gap:0.5rem}
+            .risk-card{padding:0.5rem 0.75rem}
+            .features{gap:0.75rem}
+        }
+    </style>
+</head>
+<body>
+
+<div class="video-wrap" id="video">
+    <div class="particles" id="particles"></div>
+    <div class="flash" id="flash"></div>
+
+    <!-- Click to start -->
+    <div class="start-overlay" id="startOverlay">
+        <div class="title-pre">The Invisible Injury</div>
+        <div class="play-icon"></div>
+        <p>Click to play</p>
+    </div>
+
+    <!-- Scene 1: Opening - The ER -->
+    <div class="scene scene-1" id="scene1">
+        <div class="stat-big">2.8M</div>
+        <div class="headline" style="font-size:clamp(1.2rem,3vw,1.8rem)">emergency room visits for traumatic brain injury. Every year.</div>
+        <div class="citation">CDC — Traumatic Brain Injury, 2023</div>
+    </div>
+
+    <!-- Scene 2: The Problem -->
+    <div class="scene scene-2" id="scene2">
+        <div class="subtext" style="font-size:clamp(0.85rem,2vw,1.05rem);margin-bottom:1.5rem;color:rgba(255,255,255,0.55)">In the chaos of polytrauma — broken bones, lacerations, internal injuries —</div>
+        <div class="headline">concussion symptoms are missed.</div>
+        <div class="stat-big" style="font-size:clamp(2.5rem,8vw,5.5rem);margin-top:1rem">56–89%</div>
+        <div class="stat-label">of TBI cases go undiagnosed</div>
+        <div class="citation">De Maio VJ et al., 2014; Journal of Athletic Training, 2021</div>
+    </div>
+
+    <!-- Scene 3: The Window -->
+    <div class="scene scene-3" id="scene3">
+        <div class="headline" style="font-size:clamp(1.3rem,3.5vw,2.2rem)">Symptoms fade. The injury doesn't.</div>
+        <div class="timeline-bar">
+            <div class="tl-seg"><div class="tl-time">0–6 hrs</div><div class="tl-label">Hidden</div></div>
+            <div class="tl-seg"><div class="tl-time">24–48 hrs</div><div class="tl-label">Peak</div></div>
+            <div class="tl-seg"><div class="tl-time">1–2 wks</div><div class="tl-label">Fading</div></div>
+            <div class="tl-seg"><div class="tl-time">1–3+ mo</div><div class="tl-label">Invisible</div></div>
+        </div>
+        <div class="subtext">A headache. Some confusion. Dizziness. In the ER, they're attributed to the accident — not the brain. By the time anyone looks closer, the symptoms are gone.</div>
+    </div>
+
+    <!-- Scene 4: Permanent Vulnerability -->
+    <div class="scene scene-4" id="scene4">
+        <div class="headline" style="font-size:clamp(1.2rem,3vw,1.8rem);margin-bottom:0.25rem">What's missed in the ER</div>
+        <div class="headline" style="font-size:clamp(1.4rem,3.5vw,2.2rem);color:#D4833B;transition-delay:0.5s">follows them for life.</div>
+        <div class="risk-row">
+            <div class="risk-card">
+                <div class="mult">2.23x</div>
+                <div class="cond">Suicide</div>
+                <div class="src">Neurology, 2018</div>
+            </div>
+            <div class="risk-card">
+                <div class="mult">3.26x</div>
+                <div class="cond">Dementia</div>
+                <div class="src">Neurology, 2017</div>
+            </div>
+            <div class="risk-card">
+                <div class="mult">7.4x</div>
+                <div class="cond">Epilepsy</div>
+                <div class="src">Lancet Neurology, 2019</div>
+            </div>
+            <div class="risk-card">
+                <div class="mult">2.5x</div>
+                <div class="cond">Depression</div>
+                <div class="src">JAMA Psychiatry, 2021</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scene 5: NeuTrauma Solution -->
+    <div class="scene scene-5" id="scene5">
+        <div class="headline">NeuTrauma captures<br>the invisible injury.</div>
+        <div class="subtext">Expert TBI evaluation during the critical window — via telemedicine, across 43+ states.</div>
+        <div class="features">
+            <div class="feat">Board-Certified Neurologists</div>
+            <div class="feat">Neuropsychological Testing</div>
+            <div class="feat">Comprehensive Reports</div>
+        </div>
+    </div>
+
+    <!-- Scene 6: CTA -->
+    <div class="scene scene-6" id="scene6">
+        <div class="logo-big">NeuTrauma</div>
+        <div class="cta-phone"><a href="tel:4049915401">(404) 991-5401</a></div>
+        <a href="https://jeffrey633.github.io/neutrauma-website/contact.html" class="cta-btn">Schedule a Consultation</a>
+        <div class="cta-sub">info@NeuTrauma.com &nbsp;|&nbsp; NeuTrauma.com &nbsp;|&nbsp; 43+ States</div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress" id="progress"></div>
+
+    <!-- Controls -->
+    <div class="controls" id="controls">
+        <button class="ctrl-btn" id="btnReplay" title="Replay"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg></button>
+        <button class="ctrl-btn" id="btnPause" title="Pause/Play"><svg viewBox="0 0 24 24" id="pauseIcon"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg><svg viewBox="0 0 24 24" id="playIcon" style="display:none"><path d="M8 5v14l11-7z"/></svg></button>
+    </div>
+</div>
+
+<script>
+(function(){
+    // Config
+    var scenes = [
+        {id:'scene1', duration:7000},
+        {id:'scene2', duration:8000},
+        {id:'scene3', duration:9000},
+        {id:'scene4', duration:9000},
+        {id:'scene5', duration:7000},
+        {id:'scene6', duration:10000}
+    ];
+    var totalDuration = scenes.reduce(function(a,s){return a+s.duration},0);
+
+    var currentScene = -1;
+    var startTime = 0;
+    var elapsed = 0;
+    var paused = false;
+    var pausedAt = 0;
+    var running = false;
+    var audioCtx = null;
+
+    // Particles
+    var particlesEl = document.getElementById('particles');
+    for(var i=0;i<30;i++){
+        var p = document.createElement('div');
+        p.className='particle';
+        p.style.left = Math.random()*100+'%';
+        p.style.animationDuration = (8+Math.random()*12)+'s';
+        p.style.animationDelay = Math.random()*10+'s';
+        p.style.width = p.style.height = (1+Math.random()*2)+'px';
+        particlesEl.appendChild(p);
+    }
+
+    // Audio - ambient drone
+    function startAudio(){
+        try{
+            audioCtx = new(window.AudioContext||window.webkitAudioContext)();
+            var g = audioCtx.createGain();
+            g.gain.value = 0;
+            g.connect(audioCtx.destination);
+            // Pad chord: stacked sine waves
+            var freqs = [65.41,98.00,130.81,196.00,261.63];
+            freqs.forEach(function(f){
+                var o = audioCtx.createOscillator();
+                o.type='sine';
+                o.frequency.value=f;
+                var og = audioCtx.createGain();
+                og.gain.value=0.03;
+                o.connect(og);
+                og.connect(g);
+                o.start();
+            });
+            // LFO for movement
+            var lfo = audioCtx.createOscillator();
+            lfo.frequency.value=0.15;
+            var lfoGain = audioCtx.createGain();
+            lfoGain.gain.value=0.015;
+            lfo.connect(lfoGain);
+            lfoGain.connect(g.gain);
+            lfo.start();
+            // Fade in
+            g.gain.setValueAtTime(0, audioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime+2);
+            window._audioGain = g;
+        }catch(e){}
+    }
+
+    function stopAudio(){
+        if(audioCtx && window._audioGain){
+            try{
+                window._audioGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1.5);
+                setTimeout(function(){audioCtx.close()},2000);
+            }catch(e){}
+        }
+    }
+
+    // Flash
+    function flash(){
+        var f = document.getElementById('flash');
+        f.classList.remove('active');
+        void f.offsetWidth;
+        f.classList.add('active');
+    }
+
+    // Scene management
+    function showScene(index){
+        if(index === currentScene) return;
+        // Flash on scene 4 (vulnerability)
+        if(index === 3) flash();
+        scenes.forEach(function(s,i){
+            var el = document.getElementById(s.id);
+            if(i === index) el.classList.add('active');
+            else el.classList.remove('active');
+        });
+        currentScene = index;
+    }
+
+    // Get scene index from elapsed time
+    function getSceneIndex(t){
+        var acc = 0;
+        for(var i=0;i<scenes.length;i++){
+            acc += scenes[i].duration;
+            if(t < acc) return i;
+        }
+        return scenes.length - 1;
+    }
+
+    // Animation loop
+    function tick(){
+        if(!running) return;
+        if(!paused){
+            elapsed = Date.now() - startTime;
+            if(elapsed >= totalDuration){
+                elapsed = totalDuration;
+                showScene(scenes.length - 1);
+                updateProgress();
+                running = false;
+                stopAudio();
+                return;
+            }
+        }
+        showScene(getSceneIndex(elapsed));
+        updateProgress();
+        requestAnimationFrame(tick);
+    }
+
+    function updateProgress(){
+        var pct = Math.min(100, (elapsed/totalDuration)*100);
+        document.getElementById('progress').style.width = pct+'%';
+    }
+
+    // Start
+    function start(){
+        document.getElementById('startOverlay').classList.add('hidden');
+        document.getElementById('controls').classList.add('visible');
+        startAudio();
+        startTime = Date.now();
+        elapsed = 0;
+        currentScene = -1;
+        running = true;
+        paused = false;
+        tick();
+    }
+
+    // Replay
+    function replay(){
+        stopAudio();
+        scenes.forEach(function(s){document.getElementById(s.id).classList.remove('active')});
+        currentScene = -1;
+        setTimeout(function(){
+            startAudio();
+            startTime = Date.now();
+            elapsed = 0;
+            running = true;
+            paused = false;
+            document.getElementById('pauseIcon').style.display='';
+            document.getElementById('playIcon').style.display='none';
+            tick();
+        },300);
+    }
+
+    // Pause/Play
+    function togglePause(){
+        if(paused){
+            paused = false;
+            startTime = Date.now() - pausedAt;
+            document.getElementById('pauseIcon').style.display='';
+            document.getElementById('playIcon').style.display='none';
+            if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+            tick();
+        } else {
+            paused = true;
+            pausedAt = elapsed;
+            document.getElementById('pauseIcon').style.display='none';
+            document.getElementById('playIcon').style.display='';
+            if(audioCtx && audioCtx.state==='running') audioCtx.suspend();
+        }
+    }
+
+    // Event listeners
+    document.getElementById('startOverlay').addEventListener('click', start);
+    document.getElementById('btnReplay').addEventListener('click', replay);
+    document.getElementById('btnPause').addEventListener('click', togglePause);
+
+    // Spacebar pause
+    document.addEventListener('keydown', function(e){
+        if(e.code==='Space' && running){e.preventDefault();togglePause();}
+    });
+})();
+</script>
+</body>
+</html>
