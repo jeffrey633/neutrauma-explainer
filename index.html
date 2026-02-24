@@ -279,7 +279,7 @@
                 o.type='sine';
                 o.frequency.value=f;
                 var og = audioCtx.createGain();
-                og.gain.value=0.03;
+                og.gain.value=0.12;
                 o.connect(og);
                 og.connect(g);
                 o.start();
@@ -288,13 +288,13 @@
             var lfo = audioCtx.createOscillator();
             lfo.frequency.value=0.15;
             var lfoGain = audioCtx.createGain();
-            lfoGain.gain.value=0.015;
+            lfoGain.gain.value=0.06;
             lfo.connect(lfoGain);
             lfoGain.connect(g.gain);
             lfo.start();
             // Fade in
             g.gain.setValueAtTime(0, audioCtx.currentTime);
-            g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime+2);
+            g.gain.linearRampToValueAtTime(0.45, audioCtx.currentTime+2);
             window._audioGain = g;
         }catch(e){}
     }
